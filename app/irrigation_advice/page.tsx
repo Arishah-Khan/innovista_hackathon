@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
 interface AgentResponse {
@@ -19,16 +18,13 @@ export default function AgentPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || ''; // Fallback to empty string if undefined
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResponse(null);
-
-    
 
     try {
       const formData = new FormData();
@@ -39,37 +35,47 @@ export default function AgentPage() {
         formData.append('audio', audioFile);
       }
 
-      const res = await axios.post(`${API_URL}/agent`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const res = await fetch(`${API_URL}/agent`, {
+        method: 'POST',
+        body: formData,
+        // No need to set 'Content-Type' manually; fetch handles it for FormData
       });
 
-      const data: AgentResponse = res.data;
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data: AgentResponse = await res.json();
       setResponse(data);
 
       if (data.redirect && data.redirect_url) {
         router.push(data.redirect_url);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'An error occurred while processing your request.');
+    } catch (err: unknown) {
+      // Use unknown to comply with TypeScript's catch clause requirements
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred while processing your request.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  // Commenting out handleAudioChange since there's no audio input in the form
+  /*
   const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setAudioFile(file);
     }
   };
+  */
 
   return (
-<div
-        className="relative h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: "url(/irrigation.jpg)" }}
-      >      <div className="bg-white shadow-lg rounded-lg p-8 max-w-2xl w-full">
+    <div
+      className="relative h-screen w-full flex items-center justify-center bg-cover bg-center"
+      style={{ backgroundImage: "url(/irrigation.jpg)" }}
+    >
+      <div className="bg-white shadow-lg rounded-lg p-8 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-green-600 mb-6 text-center">
           Agentic Agriflow - Irrigation Advisor
         </h1>
@@ -115,7 +121,7 @@ export default function AgentPage() {
             {response.audio_url && (
               <div className="mt-4">
                 <audio controls className="w-full">
-                  <source src={`http://localhost:8000${response.audio_url}`} type="audio/mpeg" />
+                  <source src={`${API_URL}${response.audio_url}`} type="audio/mpeg" />
                   Your browser does not support the audio element.
                 </audio>
               </div>
